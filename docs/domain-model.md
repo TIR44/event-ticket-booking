@@ -49,8 +49,8 @@ flowchart LR
     buyer -->|"sync: резерв / заказ / запрос оплаты; чтение статуса"| booking
     booking -->|"CS · async: оплата / возврат, orderId, сумма, expiresAt"| payments
     booking -->|"CS · sync: чтение результата по orderId"| payments
-    payments -->|"CS · async: денежный результат, attemptId, orderId, сумма"| booking
-    booking -->|"CS · async: покупка подтверждена, ticketId, получатель"| notifications
+    payments -->|"CS · async: денежный результат, paymentRequestId, paymentAttemptId, orderId, сумма, валюта"| booking
+    booking -->|"CS · async: покупка подтверждена, orderId, ticketId, получатель"| notifications
     payments -->|"ACL · sync HTTP: создать / найти / проверить / вернуть"| provider
     provider -->|"ACL · async: подписанный callback о результате"| payments
     notifications -->|"ACL · sync HTTP в фоновой задаче: сообщение"| delivery
