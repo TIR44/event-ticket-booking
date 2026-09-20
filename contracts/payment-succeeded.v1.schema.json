@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "payment.succeeded.v1",
+  "description": "Проектный контракт денежного факта Payments. Событие не подтверждает покупку и не выпускает билет: Booking отдельно проверяет владельца процесса, соответствие заказа/попытки, сумму, валюту и срок своего резерва по свежему времени БД. Доставка повторяема; eventId обозначает сообщение, а orderId/paymentAttemptId и локальная запись результата защищают бизнес-переход. schemaVersion описывает схему, paymentVersion — версию состояния одной попытки. Времена события не доказывают действительность резерва. Неизвестные добавочные поля допустимы для совместимого развития версии 1. Пример иллюстративен.",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "schemaVersion",
+    "eventType",
+    "eventId",
+    "paymentRequestId",
+    "paymentAttemptId",
+    "orderId",
+    "providerPaymentId",
+    "amountMinor",
+    "currency",
+    "paymentVersion",
+    "occurredAt"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "const": 1,
+      "description": "Версия схемы сообщения; не версия платёжной попытки. Несовместимое изменение требует новой версии события."
+    },
+    "eventType": {
+      "type": "string",
+      "const": "payment.succeeded.v1",
+      "description": "Payments подтвердил успешную исходную денежную операцию. Возврат является отдельным фактом и не стирает эту оплату."
+    },
+    "eventId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Стабильный UUID записи outbox Payments; не меняется при повторной доставке."
+    },
+    "paymentRequestId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Идентификатор ранее сохранённого намерения Booking."
+    },
+    "paymentAttemptId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Единственная логическая платёжная попытка данного заказа в Payments."
+    },
+    "orderId": {
+      "type": "string",
+      "format": "uuid",
+      "description": "Заказ Booking, с которым связано намерение и платёжная попытка."
+    },
+    "providerPaymentId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "Идентификатор подтверждённой операции провайдера. Это не токен доступа и не реквизиты карты."
+    },
+    "amountMinor": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991,
+      "description": "Подтверждённая сумма в минимальных единицах валюты. Целое число в безопасном диапазоне JavaScript; Booking сравнивает с зафиксированной суммой заказа."
+    },
+    "currency": {
+      "type": "string",
+      "pattern": "^[A-Z]{3}$",
+      "description": "Трёхбуквенный код валюты в верхнем регистре. Поддержка валюты и её минимальная единица определяются согласованным контрактом интеграции."
+    },
+    "paymentVersion": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Монотонная версия внутреннего состояния paymentAttemptId в Payments, присвоенная при записи факта. Не совпадает по смыслу со schemaVersion."
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Время фиксации подтверждённого денежного факта в Payments, в формате RFC 3339. Не время доставки и не основание подтверждать истёкший резерв."
+    },
+    "providerOccurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "Необязательное время операции со стороны провайдера, RFC 3339; только для сверки. Более раннее время не возрождает истёкший резерв."
+    }
+  },
+  "examples": [
+    {
+      "schemaVersion": 1,
+      "eventType": "payment.succeeded.v1",
+      "eventId": "23b4dfa2-f4fa-4791-891e-1d24e184c57f",
+      "paymentRequestId": "ba8782c9-c2eb-4720-9d73-9449670d2e19",
+      "paymentAttemptId": "9e67acd3-06f3-45b1-ab3c-ae7fdf6b64dc",
+      "orderId": "6d0fc85f-3f2b-4f72-9da2-5f6174bf2191",
+      "providerPaymentId": "illustrative-provider-payment-001",
+      "amountMinor": 350000,
+      "currency": "RUB",
+      "paymentVersion": 3,
+      "occurredAt": "2026-09-20T10:03:02Z",
+      "providerOccurredAt": "2026-09-20T10:02:58Z"
+    }
+  ]
+}
