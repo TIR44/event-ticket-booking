@@ -29,7 +29,7 @@ flowchart TB
     WORK -->|"Через адаптер Payments"| PD
     WORK -->|"Через адаптер Notifications"| ND
     WORK -->|"HTTPS: создание, сверка, возврат"| PAY
-    PAY -->|"HTTPS: callback"| API
+    PAY -->|"HTTPS: callback"| EDGE
     WORK -->|"HTTPS: доставка"| MSG
     WEB -->|"Переход на платёжную страницу"| PAY
 ```
