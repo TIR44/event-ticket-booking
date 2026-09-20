@@ -6,10 +6,10 @@
 flowchart TB
     U["Покупатель / организатор"]
     subgraph S["Event Ticket Booking"]
-      WEB["Web-приложение в браузере\nUI, восстановление состояния"]
-      EDGE["Статический origin / reverse proxy\nДоставка web и маршрутизация API"]
-      API["Backend API\nCatalog, Booking, Payments, Notifications"]
-      WORK["Backend worker\nOutbox, истечение, сверка"]
+      WEB["Web-приложение в браузере<br/>UI, восстановление состояния"]
+      EDGE["Статический origin / reverse proxy<br/>Доставка web и маршрутизация API"]
+      API["Backend API<br/>Catalog, Booking, Payments, Notifications"]
+      WORK["Backend worker<br/>Outbox, истечение, сверка"]
       CD[("catalog_db")]
       BD[("booking_db")]
       PD[("payments_db")]
@@ -18,21 +18,33 @@ flowchart TB
     PAY["Платёжный провайдер"]
     MSG["Сервис уведомлений"]
     U -->|"Работа с UI"| WEB
-    WEB -->|"HTTPS: HTML, JS и API"| EDGE
-    EDGE -->|"HTTP: API-запрос"| API
-    API -->|"Catalog adapter: SQL"| CD
-    API -->|"Booking adapter: SQL"| BD
-    API -->|"Payments adapter: SQL"| PD
-    API -->|"Notifications adapter: SQL"| ND
-    WORK -->|"Через адаптер Catalog"| CD
-    WORK -->|"Через адаптер Booking"| BD
-    WORK -->|"Через адаптер Payments"| PD
-    WORK -->|"Через адаптер Notifications"| ND
-    WORK -->|"HTTPS: создание, сверка, возврат"| PAY
-    PAY -->|"HTTPS: callback"| EDGE
-    WORK -->|"HTTPS: доставка"| MSG
-    WEB -->|"Переход на платёжную страницу"| PAY
+    WEB -->|"sync HTTPS: HTML, JS и API"| EDGE
+    EDGE -->|"sync HTTP: API-запрос"| API
+    API -->|"sync SQL: Catalog adapter"| CD
+    API -->|"sync SQL: Booking adapter"| BD
+    API -->|"sync SQL: Payments adapter"| PD
+    API -->|"sync SQL: Notifications adapter"| ND
+    WORK -->|"sync SQL через адаптер Catalog"| CD
+    WORK -->|"sync SQL через адаптер Booking"| BD
+    WORK -->|"sync SQL через адаптер Payments"| PD
+    WORK -->|"sync SQL через адаптер Notifications"| ND
+    WORK -->|"sync HTTPS в фоновой работе: создание, сверка, возврат"| PAY
+    PAY -->|"async HTTPS: callback результата"| EDGE
+    WORK -->|"sync HTTPS в фоновой работе: доставка"| MSG
+    WEB -->|"sync HTTPS: переход на платёжную страницу"| PAY
 ```
+
+Режим подписан у каждой связи схемы: `sync` означает ожидание ответа в текущем вызове, `async` — доставку, продолжающуюся после него. Поведение при исчерпании ожидания:
+
+| Связь | Режим | При таймауте |
+|---|---|---|
+| Browser → статика и `/api` | sync | Повтор загрузки или запроса; приватные ответы не берутся из кеша, отсутствие ответа не считается отказом домена |
+| Reverse proxy → Backend API | sync | Клиент получает неизвестность, а не отказ; повтор той же команды безопасен по её ключу |
+| API или worker → БД своего владельца | sync | Транзакция откатывается целиком; принятое ранее задание остаётся в outbox и повторяется |
+| Worker → платёжный провайдер | sync внутри долговечной работы | Таймаут не означает отсутствие операции: используется тот же reference для сверки, новая денежная операция не создаётся |
+| Провайдер → proxy (callback) | async | Повторная доставка ожидаема и распознаётся по идентификатору операции; пропущенный callback компенсируется сверкой |
+| Worker → сервис уведомлений | sync внутри долговечной работы | Задание остаётся и повторяется; недоставленное уведомление не отменяет подтверждённую покупку |
+| Browser → платёжная страница провайдера | sync | Возврат к маршруту заказа: состояние перечитывается у сервера, вторая оплата не создаётся |
 
 API и worker — два режима запуска одного артефакта с общей версией доменных контрактов. Worker обращается к данным через код владельцев; схема не разрешает произвольные межмодульные SQL. Четыре базы могут жить на одном PostgreSQL instance с четырьмя ролями; их отказ будет коррелированным. Независимых релизов логических сервисов пока нет.
 
