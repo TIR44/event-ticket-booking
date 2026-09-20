@@ -54,7 +54,10 @@ flowchart LR
 - [C4 Containers](docs/system-containers.md)
 - [ADR-002: владение данными](docs/adr/ADR-002-domain-ownership.md)
 - [Frontend-архитектура](docs/frontend-architecture.md)
+- [ADR-003: границы frontend и FSD](docs/adr/ADR-003-frontend-boundaries.md)
 - [Рендеринг, сборка и доставка](docs/delivery.md)
+- [ADR-004: рендеринг и разделение загрузки](docs/adr/ADR-004-rendering.md)
+- [ADR-005: артефакт, окружения и откат](docs/adr/ADR-005-delivery.md)
 
 ## Домашние задания
 
