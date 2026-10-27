@@ -22,7 +22,7 @@ flowchart LR
             api --> modules
             worker --> modules
         end
-        modules --> data["Один PostgreSQL: четыре отдельные БД и роли"]
+        modules --> data["Кластер PostgreSQL: четыре отдельные БД и роли"]
     end
     modules --> payment["Платёжный провайдер"]
     modules --> notifications["Сервис уведомлений"]

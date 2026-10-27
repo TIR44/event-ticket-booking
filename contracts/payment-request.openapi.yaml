@@ -79,7 +79,7 @@ paths:
             schema:
               $ref: '#/components/schemas/PaymentRequest'
             example:
-              reservationId: 4dd47be4-28dd-83a1-bcfa-94a064b098b4
+              reservationId: 6d0c47be-28dd-83a1-bcfa-94a064b098b4
       responses:
         '202':
           description: >-
