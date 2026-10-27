@@ -92,7 +92,7 @@ flowchart TB
     style L fill:#FFB570,stroke:#D79B00
 ```
 
-[C4 Containers](system-containers.md) показывает лидера кластера; реплики — его копии со всеми четырьмя БД, кеш каталога живёт в proxy.
+[C4 Containers](system-containers.md) показывает кластер PostgreSQL одним блоком с четырьмя БД; реплики — копии всего кластера, кеш каталога живёт в proxy.
 
 ## Что осталось открытым
 
