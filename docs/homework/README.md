@@ -18,7 +18,7 @@
 | Месяц / урок | Результат | Ветка и артефакт |
 |---|---|---|
 | 1 / 02. Атрибуты качества | Четыре атрибута, семь численных сценариев, приоритеты, trade-off, Context/Containers и ADR | `domain-decomposition`: [драйверы](../architecture-drivers.md), [Context](../system-context.md), [Containers](../system-containers.md) |
-| 1 / 03. Декомпозиция и DDD | Семь возможностей, четыре владельца/БД, связанность и DIP | `domain-decomposition`: [доменная модель](../domain-model.md), [ДЗ 2](02-decomposition.md) |
+| 1 / 03. Декомпозиция и DDD | Восемь возможностей, четыре владельца/БД, связанность и DIP | `domain-decomposition`: [доменная модель](../domain-model.md), [ДЗ 2](02-decomposition.md) |
 | 1 / 04. Практика DDD | Лента Event Storming, типы отношений, ответственность за изменения и сравнение границ | `domain-decomposition`: [Event Storming](../domain-model.md#event-storming-критического-сценария), [Context Map](../domain-model.md#context-map) |
 | 1 / 05. Сборка и доставка JS | CSR, два разреза загрузки, условная оценка эффекта LCP/TTFB и бюджеты | `frontend-architecture`: [доставка](../delivery.md). Требования проверены по PDF; содержательная речь в записи отсутствует |
 | 1 / 06. CI/CD и SSR | Стадии доставки, среды, preview, CDN, rollback; SSR обоснованно не используется | `frontend-architecture`: [доставка](../delivery.md#cicd-и-окружения), [ADR-005](../adr/ADR-005-delivery.md). Запись не опубликована, использованы PDF |
