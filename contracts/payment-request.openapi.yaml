@@ -1,0 +1,292 @@
+openapi: 3.1.1
+info:
+  title: Event Ticket Booking — запрос оплаты
+  version: 1.0.0
+  description: >-
+    Проектный контракт одного эндпоинта ДЗ «Модель взаимодействия».
+    Команда запрашивает оплату существующего заказа; ответ подтверждает
+    сохранение намерения в Booking, а не списание денег или выпуск билета.
+    Все идентификаторы в примерах иллюстративны.
+servers:
+  - url: /api
+security:
+  - bearerAuth: []
+paths:
+  /v1/orders/{orderId}/payment-requests:
+    post:
+      operationId: requestOrderPayment
+      summary: Сохранить единственное намерение оплатить заказ
+      description: |-
+        Сервер проверяет непрозрачный bearer-токен и владельца заказа при каждом
+        обращении, включая повторы. Чужой и отсутствующий заказ дают одинаковый 404.
+        Клиент передаёт только reservationId: сумму, валюту и условия оплаты
+        Booking берёт из собственного заказа. Реквизиты и URL провайдера не принимаются.
+
+        Область ключа: buyerId + операция requestOrderPayment + хеш Idempotency-Key.
+        Отпечаток включает метод, путь и каноническое тело запроса. Запись ключа,
+        единственное намерение оплаты на orderId и outbox сохраняются одной
+        транзакцией Booking. Уникальность намерения по orderId действует и при
+        разных HTTP-ключах; разные ключи не создают разные оплаты одного заказа.
+
+        После проверки владельца сервер сначала ищет прежний ключ и намерение,
+        затем проверяет срок для создания нового намерения. Прежний ключ с тем
+        же отпечатком воспроизводит исходный 202. Новый ключ с теми же данными
+        существующего намерения связывается с ним и также возвращает его 202,
+        даже если резерв уже истёк. Это восстановление результата принятой команды,
+        а не продление резерва. Тот же ключ с другим отпечатком даёт 409
+        IDEMPOTENCY_KEY_REUSED. Не соответствующий заказу reservationId даёт 409
+        RESERVATION_MISMATCH.
+
+        Для нового намерения после блокировки Booking проверяет актуальное
+        состояние заказа и свежее время своей БД. Истёкший резерв даёт 409
+        RESERVATION_EXPIRED; другое недопустимое состояние — 409 ORDER_NOT_PAYABLE.
+        Payments получает сохранённое задание асинхронно и создаёт или находит
+        единственную платёжную попытку для заказа.
+
+        Location и statusUrl ведут на чтение состояния заказа. Это другой
+        контракт, здесь GET не специфицирован. Статус ACCEPTED в ответе этой
+        команды не меняется на банковский статус при повторе.
+
+        При 503 или потере ответа клиент не считает команду принятой или
+        отклонённой окончательно: после Retry-After повторяет тот же запрос
+        с тем же ключом. Неопределённый исход commit разрешается повтором,
+        без нового намерения и денежной операции. Все ответы имеют no-store.
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          description: Идентификатор заказа текущего покупателя.
+          schema:
+            type: string
+            format: uuid
+          example: 6d0fc85f-3f2b-4f72-9da2-5f6174bf2191
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: >-
+            UUID одной логической команды клиента. Сохраняется при повторах
+            после потери ответа; не заменяет уникальность намерения по orderId.
+          schema:
+            type: string
+            format: uuid
+          example: 9f620f01-4d34-4f74-b6b8-6732f418bc91
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentRequest'
+            example:
+              reservationId: 4dd47be4-28dd-43a1-bcfa-94a064b098b4
+      responses:
+        '202':
+          description: >-
+            Намерение и outbox сохранены либо восстановлен ранее принятый
+            результат. Ответ не подтверждает результат оплаты.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Location:
+              description: Относительный URL состояния заказа; совпадает с statusUrl.
+              required: true
+              schema:
+                $ref: '#/components/schemas/OrderStatusUrl'
+              example: /api/v1/orders/6d0fc85f-3f2b-4f72-9da2-5f6174bf2191
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentRequestAccepted'
+              example:
+                paymentRequestId: ba8782c9-c2eb-4720-9d73-9449670d2e19
+                orderId: 6d0fc85f-3f2b-4f72-9da2-5f6174bf2191
+                status: ACCEPTED
+                statusUrl: /api/v1/orders/6d0fc85f-3f2b-4f72-9da2-5f6174bf2191
+        '400':
+          description: >-
+            BAD_REQUEST: отсутствует или некорректен UUID в пути, теле или
+            Idempotency-Key; JSON некорректен либо содержит неизвестные поля.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: BAD_REQUEST
+                message: Проверьте формат запроса.
+        '401':
+          description: UNAUTHENTICATED — токен отсутствует, недействителен или истёк.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            WWW-Authenticate:
+              description: Требуется действительный bearer-токен.
+              required: true
+              schema:
+                type: string
+                const: Bearer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: UNAUTHENTICATED
+                message: Требуется вход.
+        '404':
+          description: ORDER_NOT_FOUND — заказ отсутствует или принадлежит другому покупателю.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: ORDER_NOT_FOUND
+                message: Заказ не найден.
+        '409':
+          description: |-
+            Конфликт команды после проверки владельца:
+            IDEMPOTENCY_KEY_REUSED — тот же ключ использован с другим отпечатком;
+            RESERVATION_MISMATCH — резерв не относится к этому заказу;
+            RESERVATION_EXPIRED — срок резерва истёк для нового намерения;
+            ORDER_NOT_PAYABLE — состояние заказа запрещает новое намерение.
+            Конфликт не означает, что деньги были успешно списаны.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/Error'
+                  - properties:
+                      code:
+                        enum:
+                          - IDEMPOTENCY_KEY_REUSED
+                          - RESERVATION_MISMATCH
+                          - RESERVATION_EXPIRED
+                          - ORDER_NOT_PAYABLE
+              example:
+                code: RESERVATION_EXPIRED
+                message: Срок резерва истёк.
+        '429':
+          description: RATE_LIMITED — превышен лимит запросов; повторить после указанной задержки.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: RATE_LIMITED
+                message: Повторите запрос позже.
+        '503':
+          description: >-
+            TEMPORARILY_UNAVAILABLE — Booking не может подтвердить сохранение
+            команды, например из-за сбоя БД. Это не обещание приёма и не
+            доказательство отсутствия commit. Повторить с тем же ключом и телом.
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/NoStore'
+            Retry-After:
+              $ref: '#/components/headers/RetryAfter'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                code: TEMPORARILY_UNAVAILABLE
+                message: Не удалось подтвердить приём команды. Повторите тот же запрос позже.
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: >-
+        Непрозрачный токен, проверяемый сервером. Формат JWT не предполагается.
+        Аутентификация не заменяет проверку владельца заказа в Booking.
+  headers:
+    NoStore:
+      description: Обязателен для успеха и ошибок; частный ответ нельзя сохранять в кеше.
+      required: true
+      schema:
+        type: string
+        const: private, no-store
+    RetryAfter:
+      description: Обязательная задержка до повторного запроса, целое число секунд.
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+      example: 5
+  schemas:
+    PaymentRequest:
+      type: object
+      additionalProperties: false
+      required:
+        - reservationId
+      properties:
+        reservationId:
+          type: string
+          format: uuid
+          description: Резерв, на основании которого создан указанный заказ.
+    PaymentRequestAccepted:
+      type: object
+      additionalProperties: true
+      description: >-
+        Ответ версии 1 допускает добавочные поля. Клиент сохраняет совместимость,
+        игнорируя неизвестные поля; обязательные поля и их смысл не меняются.
+      required:
+        - paymentRequestId
+        - orderId
+        - status
+        - statusUrl
+      properties:
+        paymentRequestId:
+          type: string
+          format: uuid
+          description: Стабильный идентификатор намерения Booking; не идентификатор платежа банка.
+        orderId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          const: ACCEPTED
+        statusUrl:
+          $ref: '#/components/schemas/OrderStatusUrl'
+    OrderStatusUrl:
+      type: string
+      format: uri-reference
+      pattern: '^/api/v1/orders/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+      description: >-
+        Относительный URL чтения состояния этого заказа. UUID в пути равен
+        orderId из ответа; GET не входит в этот учебный контракт.
+    Error:
+      type: object
+      additionalProperties: true
+      description: Ответ ошибки допускает добавочные поля; клиент игнорирует неизвестные.
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          enum:
+            - BAD_REQUEST
+            - UNAUTHENTICATED
+            - ORDER_NOT_FOUND
+            - IDEMPOTENCY_KEY_REUSED
+            - RESERVATION_MISMATCH
+            - RESERVATION_EXPIRED
+            - ORDER_NOT_PAYABLE
+            - RATE_LIMITED
+            - TEMPORARILY_UNAVAILABLE
+        message:
+          type: string
+          minLength: 1
+          description: Сообщение для человека без токенов, платёжных реквизитов и чужих данных.
