@@ -55,11 +55,13 @@ paths:
         - name: orderId
           in: path
           required: true
-          description: Идентификатор заказа текущего покупателя.
+          description: >-
+            Идентификатор заказа текущего покупателя. UUID версии 8; клиенты
+            не разбирают его структуру и используют как непрозрачную строку.
           schema:
             type: string
             format: uuid
-          example: 6d0fc85f-3f2b-4f72-9da2-5f6174bf2191
+          example: 6d054762-e6bd-8f72-9da2-5f6174bf2191
         - name: Idempotency-Key
           in: header
           required: true
@@ -77,7 +79,7 @@ paths:
             schema:
               $ref: '#/components/schemas/PaymentRequest'
             example:
-              reservationId: 4dd47be4-28dd-43a1-bcfa-94a064b098b4
+              reservationId: 6d054762-e6bc-83a1-bcfa-94a064b098b4
       responses:
         '202':
           description: >-
@@ -91,16 +93,16 @@ paths:
               required: true
               schema:
                 $ref: '#/components/schemas/OrderStatusUrl'
-              example: /api/v1/orders/6d0fc85f-3f2b-4f72-9da2-5f6174bf2191
+              example: /api/v1/orders/6d054762-e6bd-8f72-9da2-5f6174bf2191
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/PaymentRequestAccepted'
               example:
                 paymentRequestId: ba8782c9-c2eb-4720-9d73-9449670d2e19
-                orderId: 6d0fc85f-3f2b-4f72-9da2-5f6174bf2191
+                orderId: 6d054762-e6bd-8f72-9da2-5f6174bf2191
                 status: ACCEPTED
-                statusUrl: /api/v1/orders/6d0fc85f-3f2b-4f72-9da2-5f6174bf2191
+                statusUrl: /api/v1/orders/6d054762-e6bd-8f72-9da2-5f6174bf2191
         '400':
           description: >-
             BAD_REQUEST: отсутствует или некорректен UUID в пути, теле или

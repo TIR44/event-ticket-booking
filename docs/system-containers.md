@@ -12,10 +12,12 @@ flowchart TB
       EDGE["Reverse proxy<br/>TLS, routing, входные лимиты, публичный кеш"]
       API["Backend API<br/>Catalog, Booking, Payments, Notifications"]
       WORK["Backend worker<br/>Outbox, истечение, сверка"]
-      CD[("catalog_db")]
-      BD[("booking_db")]
-      PD[("payments_db")]
-      ND[("notifications_db")]
+      subgraph DB["Кластер PostgreSQL: лидер и две синхронные реплики"]
+        CD[("catalog_db")]
+        BD[("booking_db")]
+        PD[("payments_db")]
+        ND[("notifications_db")]
+      end
       end
     end
     PAY["Платёжный провайдер"]
@@ -24,16 +26,10 @@ flowchart TB
     WEB -->|"sync HTTPS: HTML, JS, CSS"| STATIC
     WEB -->|"sync HTTPS: API"| EDGE
     EDGE -->|"sync HTTP: API-запрос"| API
-    API -->|"sync SQL: Catalog adapter"| CD
-    API -->|"sync SQL: Booking adapter"| BD
-    API -->|"sync SQL: Payments adapter"| PD
-    API -->|"sync SQL: Notifications adapter"| ND
-    WORK -->|"sync SQL через адаптер Catalog"| CD
-    WORK -->|"sync SQL через адаптер Booking"| BD
-    WORK -->|"sync SQL через адаптер Payments"| PD
-    WORK -->|"sync SQL через адаптер Notifications"| ND
+    API -->|"sync SQL: каждый модуль — в свою БД своей ролью"| DB
+    WORK -->|"sync SQL: через адаптер владельца"| DB
     WORK -->|"sync HTTPS в фоновой работе: создание, сверка, возврат"| PAY
-    PAY -->|"async HTTPS: callback результата"| EDGE
+    PAY -->|"async: callback"| EDGE
     WORK -->|"sync HTTPS в фоновой работе: доставка"| MSG
     WEB -->|"sync HTTPS: переход на платёжную страницу"| PAY
 ```
@@ -54,7 +50,7 @@ flowchart TB
 
 Числа — те же проектные настройки, что в [модели взаимодействия](interaction-model.md#доставка-и-восстановление); измеренными они не являются. Общие пределы API/proxy и внутренние доли описаны в [бюджете времени](reliability.md#бюджет-времени-и-повторы).
 
-API и worker — два режима запуска одного артефакта с общей версией доменных контрактов. Worker обращается к данным через код владельцев; схема не разрешает произвольные межмодульные SQL. Четыре базы могут жить на одном PostgreSQL instance с четырьмя ролями; их отказ будет коррелированным. Независимых релизов логических сервисов пока нет.
+API и worker — два режима запуска одного артефакта с общей версией доменных контрактов. Worker обращается к данным через код владельцев; схема не разрешает произвольные межмодульные SQL. Четыре базы живут в одном кластере PostgreSQL с четырьмя ролями; у кластера лидер и две реплики с синхронным кворумом. На схеме кластер показан одним блоком с четырьмя БД; реплики — копии всего кластера, и в первой версии чтение с них не идёт, см. [данные и масштабирование](data-scaling.md#шаг-3-репликация-и-карта-шардов). Независимых релизов логических сервисов пока нет.
 
 API обрабатывает короткие команды и callback; долгие внешние операции выполняются worker после долговечной постановки работы. Booking принимает намерение начать оплату и outbox в своей транзакции; запрос UI означает приём этого намерения, а не создание внешнего платежа. Доставщик outbox вызывает порт Payments, который фиксирует inbox и попытку в своей БД. Так синхронный внутренний вызов при доставке реализует асинхронный долговечный процесс без ожидания банка в HTTP-запросе покупателя.
 
