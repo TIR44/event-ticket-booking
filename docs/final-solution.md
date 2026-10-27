@@ -71,7 +71,7 @@
 ## Система одной картинкой
 
 ```mermaid
-flowchart LR
+flowchart TB
     U["Покупатель / организатор"] --> WEB["CSR-фронт"]
     WEB -->|"HTML, JS"| CDN["CDN"]
     WEB -->|"/api"| PX["Reverse proxy<br/>TLS, лимиты, кеш каталога 60 с"]
